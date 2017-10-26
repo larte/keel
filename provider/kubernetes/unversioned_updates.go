@@ -3,10 +3,10 @@ package kubernetes
 import (
 	"fmt"
 
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-
 	"github.com/rusenask/keel/types"
 	"github.com/rusenask/keel/util/image"
+	apiv1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -72,6 +72,9 @@ func (p *Provider) checkUnversionedDeployment(policy types.PolicyType, repo *typ
 		// marking this deployment for update
 		shouldUpdateDeployment = true
 
+		// Update digest on env var
+		deployment.Spec.Template.Spec.Containers[idx].Env = updateEnv(c.Env)
+
 		// updating annotations
 		annotations := deployment.GetAnnotations()
 		// updating digest if available
@@ -100,4 +103,16 @@ func (p *Provider) checkUnversionedDeployment(policy types.PolicyType, repo *typ
 	}
 
 	return updatePlan, shouldUpdateDeployment, nil
+}
+
+func updateEnv(env []apiv1.EnvVar) []apiv1.EnvVar {
+	newEnv := make([]apiv1.EnvVar, 0)
+	for _, e := range env {
+		if e.Name != "KEELIO_DEPLOYMENT" {
+			newEnv = append(newEnv, e)
+		}
+	}
+	newEnv = append(newEnv, apiv1.EnvVar{Name: "KEELIO_DEPLOYMENT",
+		Value: fmt.Sprintf("%x", time.Now().Unix())})
+	return newEnv
 }
